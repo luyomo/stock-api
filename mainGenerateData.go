@@ -164,6 +164,7 @@ func generateTickData(basePrice float64, dataSize int) {
 
 func tableExist() int {
   dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
+  db, err := sql.Open("mysql", dbConnStr)
   if err != nil {
     panic(err)
   }
@@ -276,3 +277,5 @@ func main() {
 //
 //    router.Run("0.0.0.0:8000")
 }
+
+// select from_unixtime(floor((order_time-order_time%60000)/1000)) as time_minute, max(price) as max_price, min(price) as min_price from tickdata group by from_unixtime(floor((order_time-order_time%60000)/1000));
