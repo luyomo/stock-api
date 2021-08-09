@@ -1,21 +1,24 @@
 package main
 
 import (
-    "net/http"
+//    "net/http"
+    "runtime"
 
     "flag"
     "fmt"
-    "github.com/gin-gonic/gin"
+//    "github.com/gin-gonic/gin"
     "time"
     "math/rand"
     "math"
-    "sort"
+//    "sort"
     "database/sql"
     "strconv"
+    "sync"
     _ "github.com/go-sql-driver/mysql"
 )
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+var count int
 
 func RandStringRunes(n int) string {
     b := make([]rune, n)
@@ -33,20 +36,6 @@ type dbConnInfoStruct struct {
     Name         string `json:"name"`
 }
 
-type tickData struct {
-    Timestamp int64   `json:"timestamp"`
-    Open      float64 `json:"open"`
-    Close     float64 `json:"close"`
-    High      float64 `json:"high"`
-    Low       float64 `json:"low"`
-    Turnover  float64 `json:"turnover"`
-    Volume    float64 `json:"volume"`
-}
-
-var tickDatas = tickData{
-    Close: 4987.777263535087, High: 4987.777263535087, Low: 4978.848433882813, Open: 4987.609622866156, Timestamp: 1628405520000, Turnover: 114441.62091504323, Volume: 22.954878888783895,
-}
-
 type tickDataRecord struct {
     Timestamp          int64  `json:"timestamp"`
     SecurityName       string `json:"security_name"`
@@ -61,13 +50,13 @@ type tickDataRecord struct {
 
 var dbConnInfo dbConnInfoStruct
 
-func getTickDatas(c *gin.Context) {
-    now := time.Now()
-    nanos := now.UnixNano()
-    millis := nanos / 1000000
-    tickDatas.Timestamp = millis
-    c.IndentedJSON(http.StatusOK, tickDatas)
-}
+//func getTickDatas(c *gin.Context) {
+//    now := time.Now()
+//    nanos := now.UnixNano()
+//    millis := nanos / 1000000
+//    tickDatas.Timestamp = millis
+//    c.IndentedJSON(http.StatusOK, tickDatas)
+//}
 
 func getNow() int64 {
   now := time.Now()
@@ -76,40 +65,9 @@ func getNow() int64 {
   return millis
 }
 
-func generatedKLineDataList(basePrice float64, dataSize int) {
-  var tickDatas []tickData
-  //fmt.Println("Hell world ", basePrice)
-  r := rand.New(rand.NewSource(99))
-  //fmt.Println("Hello world ", r.Float64())
-  baseValue := basePrice
-  for i :=1; i < dataSize; i++ {
-    //fmt.Println("The data numbering is ", i, baseValue)
-    var prices []float64
-    for i := 1; i < 5; i++ {
-      baseValue = baseValue + r.Float64() * 20 - 10
-      prices = append(prices, math.Round((r.Float64() - 0.5) * 12 + basePrice ))
-    }
-    sort.Float64s(prices)
-    //fmt.Println(prices)
-    openIdx  := int(math.Round(r.Float64() * 3))
-    closeIdx := int(math.Round(r.Float64() * 2))
-    if openIdx == closeIdx {
-        closeIdx++
-    }
-    //fmt.Println("The open and close index is ", openIdx, closeIdx, getNow())
-    var theTickData tickData
-    theTickData.Open  = prices[openIdx]
-    theTickData.Close = prices[closeIdx]
-    theTickData.High  = prices[3]
-    theTickData.Low   = prices[0]
-    theTickData.Volume = math.Round(r.Float64() * 50 + 10)
-    theTickData.Timestamp = getNow()
-    fmt.Println(theTickData)
-    tickDatas = append(tickDatas, theTickData) 
-  }
-}
+func generateTickData(basePrice float64, dataSize int, wg *sync.WaitGroup) {
+  defer wg.Done()
 
-func generateTickData(basePrice float64, dataSize int) {
   dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
   db, err := sql.Open("mysql", dbConnStr)
 
@@ -137,28 +95,31 @@ func generateTickData(basePrice float64, dataSize int) {
   r := rand.New(rand.NewSource(99))
   //fmt.Println("Hello world ", r.Float64())
   baseValue := basePrice
-  for i :=1; i < dataSize; i++ {
-    baseValue = baseValue + r.Float64() * 20 - 10
-    price := int64(math.Round((r.Float64() - 0.5) * 12 + basePrice ))
+  fmt.Println("The count is ", count)
+  for iCount :=1; iCount < (count + 1); iCount++ {
+    for i :=1; i < dataSize; i++ {
+      baseValue = baseValue + r.Float64() * 20 - 10
+      price := int64(math.Round((r.Float64() - 0.5) * 12 + basePrice ))
 
-    var tickData tickDataRecord
-    tickData.SecurityName = "Dummy Secutiry"
-    tickData.SecurityCode = 1111
-    tickData.Price = price
-    tickData.Quantity = int64(math.Round(r.Float64() * 50 + 10))
-    tickData.BuySell = 1
-    tickData.IsMaker = 1
-    tickData.IsMargin = 1
-    tickData.Timestamp = getNow()
-    iLen := int(r.Float64()*64) + 64
-    fmt.Println(iLen)
-    tickData.Comment = RandStringRunes(iLen)
-    fmt.Println(tickData)
+      var tickData tickDataRecord
+      tickData.SecurityName = "Dummy Secutiry"
+      tickData.SecurityCode = 1111
+      tickData.Price = price
+      tickData.Quantity = int64(math.Round(r.Float64() * 50 + 10))
+      tickData.BuySell = 1
+      tickData.IsMaker = 1
+      tickData.IsMargin = 1
+      tickData.Timestamp = getNow()
+      iLen := int(r.Float64()*64) + 64
+      //fmt.Println(iLen)
+      tickData.Comment = RandStringRunes(iLen)
+      //fmt.Println(tickData)
 
-    _, err = tx.Exec("INSERT INTO tickdata (order_time, security_name, security_code, price, quantity, buy_sell, is_maker, is_margin, comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", tickData.Timestamp, tickData.SecurityName, tickData.SecurityCode, tickData.Price, tickData.Quantity, tickData.BuySell, tickData.IsMaker, tickData.IsMargin, tickData.Comment)
-    if err != nil {
-      return
-	}
+      _, err = tx.Exec("INSERT INTO tickdata (order_time, security_name, security_code, price, quantity, buy_sell, is_maker, is_margin, comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", tickData.Timestamp, tickData.SecurityName, tickData.SecurityCode, tickData.Price, tickData.Quantity, tickData.BuySell, tickData.IsMaker, tickData.IsMargin, tickData.Comment)
+      if err != nil {
+        return
+      }
+    }
   }
 }
 
@@ -179,16 +140,16 @@ func tableExist() int {
   if err != nil {
     panic(err.Error())
   }
-  fmt.Println(rows)
+  //fmt.Println(rows)
 
   columns, err := rows.Columns() // カラム名を取得
   if err != nil {
     panic(err.Error())
   }
-  fmt.Println(columns)
+  //fmt.Println(columns)
 
   values := make([]sql.RawBytes, len(columns))
-  fmt.Println(values)
+  //fmt.Println(values)
 
   scanArgs := make([]interface{}, len(values))
   for i := range values {
@@ -202,14 +163,14 @@ func tableExist() int {
     }
 
     var value string
-    for i, col := range values {
+    for _, col := range values {
       // Here we can check if the value is nil (NULL value)
       if col == nil {
         value = "NULL"
       } else {
         value = string(col)
       }
-      fmt.Println(columns[i], ": ", value)
+      //fmt.Println(columns[i], ": ", value)
       i, err := strconv.Atoi(value)
       if err != nil {
         panic(err.Error())
@@ -231,7 +192,7 @@ func createTable() {
   db.SetMaxOpenConns(10)
   db.SetMaxIdleConns(10)
 
-  test, err := db.Exec(`create table tickdata( 
+  db.Exec(`create table tickdata( 
       id bigint AUTO_INCREMENT
     , order_time         bigint not null
     , security_name varchar(64) not null
@@ -246,17 +207,26 @@ func createTable() {
   if err != nil {
     panic(err.Error())
   }
-  fmt.Println(test)
+  //fmt.Println(test)
 }
 
 func main() {
   //generatedKLineDataList(5000, 10)
   //dbHostPtr := flag.String("db-host"    , "127.0.0.1", "tidb db host"     )
+  fmt.Printf("GOMAXPROCS is %d\n", runtime.GOMAXPROCS(0)  )
+  startTime := getNow()
   flag.StringVar(&dbConnInfo.Host    , "db-host", "127.0.0.1", "tidb db host")
   flag.IntVar   (&dbConnInfo.Port    , "db-port", 3306       , "tidb db port")
   flag.StringVar(&dbConnInfo.User    , "db-user", "root"     , "tidb db user")
   flag.StringVar(&dbConnInfo.Password, "db-pass", ""         , "tidb db pass")
   flag.StringVar(&dbConnInfo.Name    , "db-name", "tickdata" , "tidb db name")
+  var threads   int
+  var baseValue float64
+  var rows      int
+  flag.IntVar     (&threads  , "threads"   , 2       , "multiple thread to import the data ")
+  flag.Float64Var (&baseValue, "base-value", 5000    , "Base value of the price"            )
+  flag.IntVar     (&rows     , "rows"      , 50      , "rows per commit"                    )
+  flag.IntVar     (&count    , "count"     , 1000    , "Count to insert the data"           )
 
   flag.Parse()
 
@@ -266,12 +236,23 @@ func main() {
   fmt.Println("db pass:  -> ", dbConnInfo.Password)
   fmt.Println("db name:  -> ", dbConnInfo.Name    )
 
-  generateTickData(5000, 50)
+  fmt.Println("The multiupl thread is ", threads)
+
   tableExists := tableExist()
   fmt.Println("The table exists here is ", tableExists)
   if tableExists == 0 {
     createTable()
   }
+
+  var wg sync.WaitGroup
+
+  for i := 1; i < threads + 1; i++ {
+    wg.Add(1)
+    go generateTickData(baseValue, rows, &wg)
+  }
+  wg.Wait()
+  takenTime := getNow() - startTime
+  fmt.Println("The data insert took ", takenTime, " mills seconds")
 //    router := gin.Default()
 //    router.GET("/tickData", getTickDatas)
 //
