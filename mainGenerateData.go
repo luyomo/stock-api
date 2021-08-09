@@ -3,6 +3,7 @@ package main
 import (
     "net/http"
 
+    "flag"
     "fmt"
     "github.com/gin-gonic/gin"
     "time"
@@ -22,6 +23,14 @@ func RandStringRunes(n int) string {
         b[i] = letterRunes[rand.Intn(len(letterRunes))]
     }
     return string(b)
+}
+
+type dbConnInfoStruct struct {
+    Host         string `json:"host"`
+    Port         int    `json:"port"`
+    User         string `json:"user"`
+    Password     string `json:"pass"`
+    Name         string `json:"name"`
 }
 
 type tickData struct {
@@ -49,6 +58,8 @@ type tickDataRecord struct {
     IsMargin           int    `json:"is_margin"`
     Comment            string `json:"comment"`
 }
+
+var dbConnInfo dbConnInfoStruct
 
 func getTickDatas(c *gin.Context) {
     now := time.Now()
@@ -99,7 +110,9 @@ func generatedKLineDataList(basePrice float64, dataSize int) {
 }
 
 func generateTickData(basePrice float64, dataSize int) {
-  db, err := sql.Open("mysql", "tickuser:tickuser@tcp(192.168.1.105:3306)/tickdata")
+  dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
+  db, err := sql.Open("mysql", dbConnStr)
+
   if err != nil {
     panic(err)
   }
@@ -150,7 +163,7 @@ func generateTickData(basePrice float64, dataSize int) {
 }
 
 func tableExist() int {
-  db, err := sql.Open("mysql", "tickuser:tickuser@tcp(192.168.1.105:3306)/tickdata")
+  dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
   if err != nil {
     panic(err)
   }
@@ -237,6 +250,21 @@ func createTable() {
 
 func main() {
   //generatedKLineDataList(5000, 10)
+  //dbHostPtr := flag.String("db-host"    , "127.0.0.1", "tidb db host"     )
+  flag.StringVar(&dbConnInfo.Host    , "db-host", "127.0.0.1", "tidb db host")
+  flag.IntVar   (&dbConnInfo.Port    , "db-port", 3306       , "tidb db port")
+  flag.StringVar(&dbConnInfo.User    , "db-user", "root"     , "tidb db user")
+  flag.StringVar(&dbConnInfo.Password, "db-pass", ""         , "tidb db pass")
+  flag.StringVar(&dbConnInfo.Name    , "db-name", "tickdata" , "tidb db name")
+
+  flag.Parse()
+
+  fmt.Println("db host:  -> ", dbConnInfo.Host    )
+  fmt.Println("db port:  -> ", dbConnInfo.Port    )
+  fmt.Println("db user:  -> ", dbConnInfo.User    )
+  fmt.Println("db pass:  -> ", dbConnInfo.Password)
+  fmt.Println("db name:  -> ", dbConnInfo.Name    )
+
   generateTickData(5000, 50)
   tableExists := tableExist()
   fmt.Println("The table exists here is ", tableExists)
