@@ -41,24 +41,9 @@ func getNow() int64 {
   return millis
 }
 
-var tickDatas = tickData{
-    Close: 4987, High: 4987, Low: 4978, Open: 4987, Timestamp: 1628405520000, Turnover: 114441.62091504323, Volume: 22,
-    // 1628521665170
-}
-
-
-func getTickDatas(c *gin.Context) {
-    now := time.Now()
-    nanos := now.UnixNano()
-    millis := nanos / 1000000
-    tickDatas.Timestamp = millis
-    c.IndentedJSON(http.StatusOK, tickDatas)
-    //c.IndentedJSON(http.StatusOK, theTickDataList)
-}
-
 func fetchDataFromDB(c *gin.Context) {
   dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
-  fmt.Println("The connection string is ", dbConnStr)
+  //fmt.Println("The connection string is ", dbConnStr)
   db, err := sql.Open("mysql", dbConnStr)
   if err != nil {
     panic(err)
@@ -72,11 +57,9 @@ func fetchDataFromDB(c *gin.Context) {
   var theTickDataList []tickData
 
   //rows, err := db.Query("SELECT current_timestamp as theTime") // 
-  //orderTime := getNow() - 1200000
-  orderTime := getNow() - 1200000000
-  fmt.Println("The time is ", orderTime)
-  //query := fmt.Sprintf("select security_name, floor((order_time-mod(order_time, 60000))/1000) as time_minute, max(price) as max_price, min(price) as min_price from tickdata where order_time > %d group by security_name, floor((order_time-mod(order_time, 60000))/1000) desc limit 1" , orderTime ) 
-  //query := fmt.Sprintf("select security_name, (order_time-mod(order_time, 1000)) as time_minute, max(price) as max_price, min(price) as min_price from tickdata where order_time > %d group by security_name, (order_time-mod(order_time, 1000)) desc limit 2" , orderTime ) 
+  orderTime := getNow() - 3000
+  //orderTime := getNow() - 1200000000
+  //fmt.Println("The time is ", orderTime)
   query := fmt.Sprintf(`
   with tbl_open_close_time as (
     select security_name, (order_time-mod(order_time, 60000)) as time_minute
@@ -105,13 +88,13 @@ inner join tbl_summary t4
   if err != nil {
     panic(err.Error())
   }
-  fmt.Println(rows)
+  //fmt.Println(rows)
 
   columns, err := rows.Columns() // カラム名を取得
   if err != nil {
     panic(err.Error())
   }
-  fmt.Println(columns)
+  //fmt.Println(columns)
 
   values := make([]sql.RawBytes, len(columns))
   ////fmt.Println(values)
@@ -188,7 +171,7 @@ inner join tbl_summary t4
     }
     theTickDataList = append(theTickDataList, theTickData)
   }
-  fmt.Println(theTickDataList)
+  //fmt.Println(theTickDataList)
   c.IndentedJSON(http.StatusOK, theTickDataList)
 }
 
@@ -198,12 +181,13 @@ func main() {
     flag.StringVar(&dbConnInfo.User    , "db-user", "root"     , "tidb db user")
     flag.StringVar(&dbConnInfo.Password, "db-pass", ""         , "tidb db pass")
     flag.StringVar(&dbConnInfo.Name    , "db-name", "tickdata" , "tidb db name")
+    portPtr     := flag.Int("port", 8000, "Port the service is listening on")
+    hostPtr     := flag.String("host","0.0.0.0", "The ip the service is listening on")
     flag.Parse()
     //fetchDataFromDB()
 
     router := gin.Default()
-    //router.GET("/tickData", getTickDatas)
     router.GET("/tickData", fetchDataFromDB)
 
-    router.Run("0.0.0.0:8000")
+    router.Run(fmt.Sprintf("%s:%d", *hostPtr, *portPtr))
 }
