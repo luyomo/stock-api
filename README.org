@@ -1,0 +1,3 @@
+go run mainGenerateData.go --db-host=192.168.1.105 --db-port=3306 --db-user=tickuser --db-pass=tickuser --db-name=tickdata --threads=2 --count=2
+
+go run main.go --db-host=192.168.1.105 --db-port=3306 --db-user=tickuser --db-pass=tickuser --db-name=tickdata

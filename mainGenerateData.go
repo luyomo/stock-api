@@ -120,6 +120,11 @@ func generateTickData(basePrice float64, dataSize int, wg *sync.WaitGroup) {
         return
       }
     }
+    tx.Commit()
+    tx, err = db.Begin()
+    if err != nil {
+      return
+    }
   }
 }
 
