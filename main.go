@@ -5,8 +5,8 @@ import (
     "flag"
     "github.com/gin-gonic/gin"
     "time"
-    "math"
-    "math/rand"
+//    "math"
+//    "math/rand"
     "fmt"
     "strconv"
     "database/sql"
@@ -21,7 +21,7 @@ type tickData struct {
     High         int     `json:"high"`
     Low          int     `json:"low"`
     Turnover     float64 `json:"turnover"`
-    Volume       float64 `json:"volume"`
+    Volume       int `json:"volume"`
 }
 
 type dbConnInfoStruct struct {
@@ -42,7 +42,7 @@ func getNow() int64 {
 }
 
 var tickDatas = tickData{
-    Close: 4987, High: 4987, Low: 4978, Open: 4987, Timestamp: 1628405520000, Turnover: 114441.62091504323, Volume: 22.954878888783895,
+    Close: 4987, High: 4987, Low: 4978, Open: 4987, Timestamp: 1628405520000, Turnover: 114441.62091504323, Volume: 22,
     // 1628521665170
 }
 
@@ -76,7 +76,31 @@ func fetchDataFromDB(c *gin.Context) {
   orderTime := getNow() - 1200000000
   fmt.Println("The time is ", orderTime)
   //query := fmt.Sprintf("select security_name, floor((order_time-mod(order_time, 60000))/1000) as time_minute, max(price) as max_price, min(price) as min_price from tickdata where order_time > %d group by security_name, floor((order_time-mod(order_time, 60000))/1000) desc limit 1" , orderTime ) 
-  query := fmt.Sprintf("select security_name, (order_time-mod(order_time, 1000)) as time_minute, max(price) as max_price, min(price) as min_price from tickdata where order_time > %d group by security_name, (order_time-mod(order_time, 1000)) desc limit 2" , orderTime ) 
+  //query := fmt.Sprintf("select security_name, (order_time-mod(order_time, 1000)) as time_minute, max(price) as max_price, min(price) as min_price from tickdata where order_time > %d group by security_name, (order_time-mod(order_time, 1000)) desc limit 2" , orderTime ) 
+  query := fmt.Sprintf(`
+  with tbl_open_close_time as (
+    select security_name, (order_time-mod(order_time, 60000)) as time_minute
+         , min(order_time) as open_time, max(order_time) as close_time
+      from tickdata
+     where order_time > %d
+  group by security_name, (order_time-mod(order_time, 60000))
+  ), tbl_summary as (
+    select security_name
+         , (order_time-mod(order_time, 60000)) as time_minute
+         , max(price) as max_price, min(price) as min_price, sum(quantity) as volume
+      from tickdata
+     where order_time > %d
+  group by security_name, (order_time-mod(order_time, 60000))
+  )
+  select t1.security_name, t1.time_minute, t2.price as open_price, t3.price as close_price
+       , t4.max_price, t4.min_price, t4.volume
+      from tbl_open_close_time t1
+inner join tickdata t2
+        on t1.open_time = t2.order_time
+inner join tickdata t3
+        on t1.close_time = t3.order_time
+inner join tbl_summary t4
+        on t1.time_minute = t4.time_minute` , orderTime, orderTime ) 
   rows, err := db.Query(query)
   if err != nil {
     panic(err.Error())
@@ -130,8 +154,27 @@ func fetchDataFromDB(c *gin.Context) {
            panic(err.Error())
         }
         theTickData.Low = iValue
-        theTickData.Open = theTickData.Low + int(math.Floor(rand.Float64() * float64(theTickData.High - theTickData.Low)))
-        theTickData.Close = theTickData.Low + int(math.Floor(rand.Float64() * float64(theTickData.High - theTickData.Low)))
+      }
+      if columns[i] == "open_price" {
+        iValue, err := strconv.Atoi(value)
+        if err != nil {
+           panic(err.Error())
+        }
+        theTickData.Open = iValue
+      }
+      if columns[i] == "close_price" {
+        iValue, err := strconv.Atoi(value)
+        if err != nil {
+           panic(err.Error())
+        }
+        theTickData.Close = iValue
+      }
+      if columns[i] == "volume" {
+        iValue, err := strconv.Atoi(value)
+        if err != nil {
+           panic(err.Error())
+        }
+        theTickData.Volume = iValue
       }
 
       if columns[i] == "time_minute" {
