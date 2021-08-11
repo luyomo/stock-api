@@ -187,7 +187,8 @@ func tableExist() int {
 }
 
 func createTable() {
-  db, err := sql.Open("mysql", "tickuser:tickuser@tcp(192.168.1.105:3306)/tickdata")
+  dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
+  db, err := sql.Open("mysql", dbConnStr)
   if err != nil {
     panic(err)
   }
