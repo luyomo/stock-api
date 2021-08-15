@@ -50,14 +50,6 @@ type tickDataRecord struct {
 
 var dbConnInfo dbConnInfoStruct
 
-//func getTickDatas(c *gin.Context) {
-//    now := time.Now()
-//    nanos := now.UnixNano()
-//    millis := nanos / 1000000
-//    tickDatas.Timestamp = millis
-//    c.IndentedJSON(http.StatusOK, tickDatas)
-//}
-
 func getNow() int64 {
   now := time.Now()
   nanos := now.UnixNano()
@@ -90,7 +82,6 @@ func generateTickData(basePrice float64, dataSize int, wg *sync.WaitGroup) {
     }
   }()
 
-  //var tickDatas []tickData
   //fmt.Println("Hell world ", basePrice)
   r := rand.New(rand.NewSource(99))
   //fmt.Println("Hello world ", r.Float64())
@@ -121,6 +112,15 @@ func generateTickData(basePrice float64, dataSize int, wg *sync.WaitGroup) {
       }
     }
     tx.Commit()
+    if iCount % 100 == 0 {
+      db.Close()
+      db, err = sql.Open("mysql", dbConnStr)
+
+      if err != nil {
+        panic(err)
+      }
+    }
+
     tx, err = db.Begin()
     if err != nil {
       return
