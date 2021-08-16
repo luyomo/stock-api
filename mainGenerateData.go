@@ -199,7 +199,7 @@ func createTable() {
   db.SetMaxIdleConns(10)
 
   db.Exec(`create table tickdata( 
-      id bigint AUTO_INCREMENT
+      id bigint AUTO_RANDOM
     , order_time         bigint not null
     , security_name varchar(64) not null
     , security_code      bigint not null
