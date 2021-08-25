@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+    "time"
 
 	"github.com/gorilla/websocket"
 )
@@ -25,12 +26,15 @@ func echo(w http.ResponseWriter, r *http.Request) {
 			log.Println("read:", err)
 			break
 		}
-		log.Printf("recv: %s", message)
-		err = c.WriteMessage(mt, message)
-		if err != nil {
-			log.Println("write:", err)
-			break
-		}
+        for true {
+            time.Sleep(2 * time.Second)
+		    log.Printf("recv: %s", message)
+		    err = c.WriteMessage(mt, message)
+		    if err != nil {
+		    	log.Println("write:", err)
+		    	break
+		    }
+        }  
 	}
 }
 
