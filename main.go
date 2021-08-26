@@ -1,16 +1,19 @@
 package main
 
 import (
-    "net/http"
     "flag"
-    "github.com/gin-gonic/gin"
+//    "github.com/gin-gonic/gin"
     "time"
 //    "math"
 //    "math/rand"
     "fmt"
     "strconv"
     "database/sql"
+    "log"
     _ "github.com/go-sql-driver/mysql"
+
+     "net/http"
+     "github.com/gorilla/websocket"
 )
 
 type tickData struct {
@@ -32,6 +35,8 @@ type dbConnInfoStruct struct {
     Name         string `json:"name"`
 }
 
+var upgrader = websocket.Upgrader{} // use default options
+
 var dbConnInfo dbConnInfoStruct
 
 func getNow() int64 {
@@ -41,7 +46,8 @@ func getNow() int64 {
   return millis
 }
 
-func fetchDataFromDB(c *gin.Context) {
+//func fetchDataFromDB(c *gin.Context) {
+func fetchDataFromDB() []tickData {
   dbConnStr := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", dbConnInfo.User, dbConnInfo.Password, dbConnInfo.Host, dbConnInfo.Port, dbConnInfo.Name)
   //fmt.Println("The connection string is ", dbConnStr)
   db, err := sql.Open("mysql", dbConnStr)
@@ -54,7 +60,7 @@ func fetchDataFromDB(c *gin.Context) {
   db.SetMaxOpenConns(10)
   db.SetMaxIdleConns(10)
 
-  var theTickDataList []tickData
+  theTickDataList := []tickData{}
 
   //rows, err := db.Query("SELECT current_timestamp as theTime") // 
   orderTime := getNow() - 3000
@@ -171,8 +177,37 @@ inner join tbl_summary t4
     }
     theTickDataList = append(theTickDataList, theTickData)
   }
+  return theTickDataList
   //fmt.Println(theTickDataList)
-  c.IndentedJSON(http.StatusOK, theTickDataList)
+  //c.IndentedJSON(http.StatusOK, theTickDataList)
+}
+
+func handleTickData(w http.ResponseWriter, r *http.Request) {
+    c, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        log.Print("upgrade:", err)
+        return
+    }
+    defer c.Close()
+    for {
+        mt, message, err := c.ReadMessage()
+        log.Println("Get message:", message, " and ", mt)
+        if err != nil {
+            log.Println("read:", err)
+            break
+        }
+        for true {
+            time.Sleep(2 * time.Second)
+            data := fetchDataFromDB()
+            log.Printf("recv: %s", data)
+            //err = c.WriteMessage(mt, message)
+            err = c.WriteJSON(data)
+            if err != nil {
+                log.Println("write:", err)
+                break
+            }
+        }
+    }
 }
 
 func main() {
@@ -184,10 +219,7 @@ func main() {
     portPtr     := flag.Int("port", 8000, "Port the service is listening on")
     hostPtr     := flag.String("host","0.0.0.0", "The ip the service is listening on")
     flag.Parse()
-    //fetchDataFromDB()
 
-    router := gin.Default()
-    router.GET("/tickData", fetchDataFromDB)
-
-    router.Run(fmt.Sprintf("%s:%d", *hostPtr, *portPtr))
+    http.HandleFunc("/tickData", handleTickData)
+    log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *hostPtr, *portPtr), nil))
 }
