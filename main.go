@@ -197,7 +197,7 @@ func handleTickData(w http.ResponseWriter, r *http.Request) {
             break
         }
         for true {
-            time.Sleep(2 * time.Second)
+            time.Sleep(1 * time.Second)
             data := fetchDataFromDB()
             log.Printf("recv: %s", data)
             //err = c.WriteMessage(mt, message)
